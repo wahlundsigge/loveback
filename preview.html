@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoveBack - Förhandsvisning</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .phone {
+            width: 375px;
+            height: 667px;
+            background: #0B0B1A;
+            border-radius: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .phone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 25px;
+            background: #0B0B1A;
+            border-radius: 0 0 15px 15px;
+            z-index: 10;
+        }
+
+        .screen {
+            padding: 60px 20px 20px 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #aaa;
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        .buttons {
+            width: 100%;
+            gap: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .button {
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .primary-button {
+            background: #4dff88;
+            color: black;
+        }
+
+        .secondary-button {
+            background: #1C1C2E;
+            color: white;
+            border: 1px solid #333;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .tabs {
+            display: flex;
+            background: #1C1C2E;
+            padding: 0;
+            margin-top: auto;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            color: #aaa;
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        .tab.active {
+            color: #4dff88;
+        }
+
+        .tab-icon {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .swipe-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            width: 300px;
+            height: 400px;
+            background: white;
+            border-radius: 20px;
+            margin: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .card-image {
+            width: 100px;
+            height: 100px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            margin-bottom: 20px;
+        }
+
+        .card-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .card-age {
+            color: #666;
+            font-size: 18px;
+        }
+
+        .swipe-buttons {
+            display: flex;
+            gap: 40px;
+            margin-top: 20px;
+        }
+
+        .swipe-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dislike {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .like {
+            background: #4dff88;
+            color: white;
+        }
+
+        .dislike:hover {
+            background: #ff5252;
+            transform: scale(1.1);
+        }
+
+        .like:hover {
+            background: #00e676;
+            transform: scale(1.1);
+        }
+
+        .status {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone">
+        <div class="screen">
+            <!-- Welcome Screen -->
+            <div id="welcome-screen" class="welcome-screen">
+                <div class="logo">💙</div>
+                <h1 class="title">LoveBack</h1>
+                <p class="subtitle">Hitta kärleken i din stad</p>
+
+                <div class="buttons">
+                    <button class="button primary-button" onclick="showLogin()">Skapa konto</button>
+                    <button class="button secondary-button" onclick="showLogin()">Jag har redan ett konto</button>
+                </div>
+            </div>
+
+            <!-- Swipe Screen -->
+            <div id="swipe-screen" class="swipe-screen" style="display: none;">
+                <div class="card">
+                    <div class="card-image"></div>
+                    <div class="card-name">Anna, 25</div>
+                    <div class="card-age">Stockholm</div>
+                </div>
+
+                <div class="swipe-buttons">
+                    <button class="swipe-button dislike" onclick="dislike()">✕</button>
+                    <button class="swipe-button like" onclick="like()">♥</button>
+                </div>
+            </div>
+
+            <!-- Status Message -->
+            <div id="status" class="status"></div>
+
+            <!-- Bottom Tabs -->
+            <div class="tabs">
+                <a href="#" class="tab" onclick="showSwipe()">
+                    <div class="tab-icon">🔍</div>
+                    <div>Utforska</div>
+                </a>
+                <a href="#" class="tab active" onclick="showSwipe()">
+                    <div class="tab-icon">💕</div>
+                    <div>Swipe</div>
+                </a>
+                <a href="#" class="tab" onclick="showMatches()">
+                    <div class="tab-icon">💬</div>
+                    <div>Matcher</div>
+                </a>
+                <a href="#" class="tab" onclick="showProfile()">
+                    <div class="tab-icon">👤</div>
+                    <div>Profil</div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showLogin() {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('swipe-screen').style.display = 'flex';
+            showStatus('Välkommen! Detta är en förhandsvisning av LoveBack-appen');
+        }
+
+        function showSwipe() {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('swipe-screen').style.display = 'flex';
+        }
+
+        function showMatches() {
+            showStatus('Matcher-sidan kommer snart!');
+        }
+
+        function showProfile() {
+            showStatus('Profil-sidan kommer snart!');
+        }
+
+        function like() {
+            showStatus('💕 Match! Du gillade Anna');
+            setTimeout(() => {
+                showStatus('Laddar nästa profil...');
+                setTimeout(() => {
+                    document.querySelector('.card-name').textContent = 'Maria, 28';
+                    hideStatus();
+                }, 1000);
+            }, 1500);
+        }
+
+        function dislike() {
+            showStatus('🚫 Hoppade över Anna');
+            setTimeout(() => {
+                showStatus('Laddar nästa profil...');
+                setTimeout(() => {
+                    document.querySelector('.card-name').textContent = 'Lisa, 23';
+                    hideStatus();
+                }, 1000);
+            }, 1500);
+        }
+
+        function showStatus(message) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.classList.add('show');
+        }
+
+        function hideStatus() {
+            document.getElementById('status').classList.remove('show');
+        }
+    </script>
+</body>
+</html>
