@@ -2,12 +2,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-naviga
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from './lib/supabase';
+import { IS_DEMO } from '../demo/config';
 import { CoinProvider } from '../contexts/CoinContext';
 import { UserProvider } from '../contexts/UserContext';
 import { CoinToast } from '../components/CoinToast';
@@ -37,6 +39,14 @@ export default function RootLayout() {
         router.replace('/(tabs)/swipe');
       }
     });
+
+    // The demo session only lives in memory, so reloading the browser on a
+    // deep link (e.g. /profile) arrives without one — send it to the start.
+    if (IS_DEMO && Platform.OS === 'web') {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) router.replace('/auth');
+      });
+    }
 
     return () => data.subscription?.unsubscribe();
   }, []);

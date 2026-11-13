@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import type { DuoDeckMember } from "../app/lib/duo-api";
 import { glowShadow } from "../constants/style";
@@ -26,10 +27,16 @@ function MemberHalf({ member }: { member: DuoDeckMember }) {
           <Ionicons name="person" size={40} color="#2A2620" />
         </View>
       )}
-      <View style={styles.gradient} />
+      <LinearGradient
+        colors={["rgba(8,8,8,0)", "rgba(8,8,8,0.55)", "rgba(8,8,8,0.94)"]}
+        locations={[0, 0.5, 1]}
+        style={styles.gradient}
+        pointerEvents="none"
+      />
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {(member.first_name || member.name || "").split(" ")[0]}{member.age ? `, ${member.age}` : ""}
+          {(member.first_name || member.name || "").split(" ")[0]}
+          {member.age ? <Text style={styles.age}>  {member.age}</Text> : null}
         </Text>
       </View>
     </View>
@@ -62,25 +69,28 @@ export function DuoCard({
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: "hidden",
     backgroundColor: "#101010",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(201,168,76,0.22)",
     ...glowShadow(0.08, 24),
   },
   half: { flex: 1, position: "relative" },
   photo: { width: "100%", height: "100%", position: "absolute" },
   photoPlaceholder: { backgroundColor: "#1a1a1a", alignItems: "center", justifyContent: "center" },
   gradient: {
-    position: "absolute", bottom: 0, left: 0, right: 0, height: "40%",
-    backgroundColor: "rgba(0,0,0,0.55)",
+    position: "absolute", bottom: 0, left: 0, right: 0, height: "44%",
   },
-  info: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 14, paddingBottom: 14 },
-  name: { color: "#fff", fontSize: 19, fontWeight: "800", letterSpacing: 0.3 },
-  divider: { width: 2, backgroundColor: "#C9A84C" },
+  info: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 20 },
+  name: { color: "#fff", fontSize: 21, fontWeight: "700", letterSpacing: 0.2 },
+  age: { fontWeight: "300", color: "rgba(255,255,255,0.86)" },
+  divider: { width: StyleSheet.hairlineWidth * 2, backgroundColor: "rgba(201,168,76,0.75)" },
   duoBadge: {
     position: "absolute", top: 14, right: 14,
-    backgroundColor: "#C9A84C", borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: "rgba(8,8,8,0.6)", borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(201,168,76,0.7)",
+    paddingHorizontal: 11, paddingVertical: 4,
   },
-  duoBadgeText: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
+  duoBadgeText: { color: "#C9A84C", fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
 });

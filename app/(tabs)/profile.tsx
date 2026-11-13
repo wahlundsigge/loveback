@@ -15,9 +15,12 @@ import {
   View,
 } from "react-native";
 import { Image as CachedImage } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import ReanimatedView, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { DURATION_NORMAL, SPRING_SNAPPY, PHOTO_VELOCITY_THRESHOLD } from "../../constants/motion";
+import { IS_DEMO } from "../../demo/config";
+import { demoRuntime } from "../../demo/runtime";
 import { Touchable } from "../../components/Touchable";
 import { supabase } from "../lib/supabase";
 import { uploadMedia } from "../lib/upload-media";
@@ -307,7 +310,7 @@ export default function ProfileScreen() {
       if (!userId) throw new Error('not_authenticated');
       const resp = await fetch(croppedUri);
       const blob = await resp.blob();
-      const url = await uploadMedia(blob, blob.type || 'image/jpeg', userId, 'image');
+      const url = await uploadMedia(blob, blob.type || 'image/jpeg', userId, 'image', croppedUri);
       setImages((prev) => [...prev, url]);
     } catch (err: any) {
       setSaveMsg({ ok: false, text: friendlyError(err, "Kunde inte ladda upp bilden.") });
@@ -373,6 +376,13 @@ export default function ProfileScreen() {
     _cUid = ""; _cImages = []; _cMeta = null;
     try { await supabase.auth.signOut(); } catch {}
     router.replace("/auth");
+  };
+
+  // Demo Mode only: restore every fictional profile, match, chat and coin
+  // to the start state, then return to the demo welcome screen.
+  const handleDemoReset = async () => {
+    demoRuntime?.resetDemo();
+    await handleLogout();
   };
 
   const avatarUri = images[0] || null;
@@ -478,7 +488,7 @@ export default function ProfileScreen() {
                 </View>
               )}
             </Touchable>
-            {avatarUri && <View style={styles.heroGradient} pointerEvents="none" />}
+            {avatarUri && <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={styles.heroGradient} pointerEvents="none" />}
             {avatarUri && (
               <View style={styles.heroInfo} pointerEvents="none">
                 <Text style={styles.heroName} numberOfLines={1}>{name || "Din profil"}</Text>
@@ -669,8 +679,15 @@ export default function ProfileScreen() {
           </Touchable>
         )}
 
+        {IS_DEMO && (
+          <Touchable style={styles.demoResetBtn} onPress={handleDemoReset} testID="demo-reset-btn">
+            <Ionicons name="refresh" size={16} color="#C9A84C" />
+            <Text style={styles.demoResetText}>Återställ demo</Text>
+          </Touchable>
+        )}
+
         <Touchable style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logga ut</Text>
+          <Text style={styles.logoutText}>{IS_DEMO ? "Avsluta demo" : "Logga ut"}</Text>
         </Touchable>
       </ScrollView>
 
@@ -819,7 +836,7 @@ const styles = StyleSheet.create({
   heroImage: { width: "100%", height: "100%" },
   heroEmpty: { alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderStyle: "dashed", borderColor: "rgba(201,168,76,0.22)" },
   heroEmptyText: { color: "#4A4035", fontSize: 13, fontWeight: "600" },
-  heroGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: "48%", backgroundColor: "rgba(0,0,0,0.5)" },
+  heroGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: "48%" },
   heroInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 18 },
   heroName: { color: "#fff", fontSize: 23, fontWeight: "900", letterSpacing: 0.3 },
   heroAge: { color: "rgba(255,255,255,0.78)", fontSize: 14, marginTop: 2 },
@@ -935,6 +952,8 @@ const styles = StyleSheet.create({
   duosBtnText: { color: "#C9A84C", fontSize: 14, fontWeight: "700", letterSpacing: 1 },
   adminBtnRow: { flexDirection: "row", gap: 8, borderRadius: 50, paddingVertical: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#C9A84C", marginBottom: 10, backgroundColor: "#0D0B04" },
   adminBtnText: { color: "#C9A84C", fontSize: 14, fontWeight: "700", letterSpacing: 1 },
+  demoResetBtn: { flexDirection: "row", gap: 8, borderRadius: 50, paddingVertical: 16, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#C9A84C40", marginBottom: 12 },
+  demoResetText: { color: "#C9A84C", fontSize: 15, fontWeight: "600" },
   logoutBtn: { borderRadius: 50, paddingVertical: 16, alignItems: "center", borderWidth: 1, borderColor: "#1E1C19" },
   logoutText: { color: "#3A3530", fontSize: 15, fontWeight: "600" },
   successText: { color: "#C9A84C", textAlign: "center", fontSize: 14, fontWeight: "600", marginBottom: 12 },

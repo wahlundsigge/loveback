@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { supabase } from "./lib/supabase";
+import { IS_DEMO } from "../demo/config";
 import { LogoIcon } from "../components/LogoIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Touchable } from "../components/Touchable";
@@ -188,6 +189,16 @@ export default function AuthScreen() {
     }
   };
 
+  const startDemo = async () => {
+    setLoading(true);
+    try {
+      await supabase.auth.signInWithPassword({ email: "", password: "" });
+      router.replace("/(tabs)/swipe");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (step === "welcome") {
     return (
       <View style={styles.welcome}>
@@ -204,14 +215,25 @@ export default function AuthScreen() {
             <QuoteCycle />
           </View>
         </View>
-        <View style={styles.welcomeButtons}>
-          <Touchable style={styles.primaryBtn} onPress={() => setStep("signup")}>
-            <Text style={styles.primaryBtnText}>Skapa konto</Text>
-          </Touchable>
-          <Touchable style={styles.outlineBtn} onPress={() => setStep("login")}>
-            <Text style={styles.outlineBtnText}>Logga in</Text>
-          </Touchable>
-        </View>
+        {IS_DEMO ? (
+          // Demo Mode: one entry point into the fictional demo account —
+          // there is no real backend to sign in to or create accounts on.
+          <View style={styles.welcomeButtons}>
+            <Touchable style={[styles.primaryBtn, loading && styles.disabledBtn]} haptic="medium" onPress={startDemo} disabled={loading} testID="start-demo-btn">
+              <Text style={styles.primaryBtnText}>{loading ? "Startar..." : "Starta demo"}</Text>
+            </Touchable>
+            <Text style={styles.demoCaption}>DEMOLÄGE · FIKTIV DATA</Text>
+          </View>
+        ) : (
+          <View style={styles.welcomeButtons}>
+            <Touchable style={styles.primaryBtn} onPress={() => setStep("signup")}>
+              <Text style={styles.primaryBtnText}>Skapa konto</Text>
+            </Touchable>
+            <Touchable style={styles.outlineBtn} onPress={() => setStep("login")}>
+              <Text style={styles.outlineBtnText}>Logga in</Text>
+            </Touchable>
+          </View>
+        )}
       </View>
     );
   }
@@ -374,6 +396,8 @@ const styles = StyleSheet.create({
     marginTop: 32,
     alignItems: "center",
   },
+  demoCaption: { color: "#6E6250", fontSize: 11, letterSpacing: 2.5, textAlign: "center", marginTop: 4 },
+  disabledBtn: { opacity: 0.5 },
   welcomeButtons: {
     paddingHorizontal: 32,
     gap: 14,

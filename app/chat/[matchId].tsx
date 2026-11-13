@@ -27,25 +27,26 @@ import { Touchable } from "../../components/Touchable";
 import { BottomSheet } from "../../components/BottomSheet";
 
 const UNLOCK_COST = 80;
-const UNLOCK_REWARD = 25;
+const UNLOCK_REWARD = 20;
 const DUO_REWARD_EACH = 10;
+const OPENERS = ["Hej! Hur ser din helg ut? 👋", "Vad fick dig att svepa höger?", "Kaffe eller promenad först?"];
 
 const _hlSvg = `<svg fill="#C9A84C" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45.92 45.92"><g><g><path d="M16.596,6.637C18.296,4.937,20.557,4,22.96,4c4.963,0,9,4.037,9,9v0.143c1.404,0.226,2.756,0.666,4,1.333V13c0-7.168-5.832-13-13-13c-3.472,0-6.736,1.353-9.192,3.807c-0.781,0.781-0.781,2.048-0.001,2.829C14.548,7.417,15.814,7.416,16.596,6.637z"/><path d="M36.871,18.851c-1.927-1.924-4.447-2.886-6.97-2.886c-2.51,0-5.021,0.954-6.941,2.858c-1.921-1.905-4.431-2.858-6.941-2.858c-2.522,0-5.045,0.962-6.971,2.886c-3.849,3.848-3.849,10.09,0,13.939c0.19,0.187,9.322,9.276,12.685,12.623c0.338,0.338,0.783,0.507,1.227,0.507c0.443,0,0.889-0.169,1.227-0.507c3.363-3.347,12.496-12.438,12.686-12.623C40.722,28.941,40.722,22.698,36.871,18.851z M24.96,31.72v3.484c0,1.358-0.641,2.462-2,2.462c-1.359,0-2-1.104-2-2.462V31.72c-1-0.661-1.39-1.596-1.39-2.641c0-2,1.505-3.621,3.505-3.621s3.332,1.621,3.332,3.621C26.407,30.124,25.96,31.059,24.96,31.72z"/></g></g></svg>`;
 const HEART_LOCK_URI = `data:image/svg+xml,${encodeURIComponent(_hlSvg)}`;
 
 const UNLOCK_PAIRS = [
-  { main: "Lås upp för 100 Coins 💘", sub: "Din match får 25 Coins som tack för att du vågade först." },
-  { main: "100 Coins för att ta första steget 🚀", sub: "Din match belönas med 25 Coins. Kärlek ska vara en win-win." },
-  { main: "Öppna dörren för 100 Coins 🔓", sub: "Din match får 25 Coins. Vi gillar när båda går därifrån som vinnare." },
-  { main: "100 Coins och ett hej närmare 👋", sub: "Din match får 25 Coins. Någon måste ju börja." },
-  { main: "100 Coins för att sluta spela svår 😉", sub: "Din match får 25 Coins för att du tog initiativet." },
-  { main: "Betala 100 Coins och slipp \"vem skriver först?\"-paniken 😅", sub: "Din match får 25 Coins som fredsgåva." },
-  { main: "100 Coins för modet att säga hej 🫡", sub: "Din match får 25 Coins. Hjältar belönas." },
-  { main: "Tryck här och skyll på oss om det blir kärlek ❤️", sub: "Kostar 100 Coins. Din match får 25 Coins." },
-  { main: "Ge matchen en chans för 100 Coins ✨", sub: "Din match får 25 Coins tillbaka." },
-  { main: "En liten investering. En möjlig stor historia.", sub: "100 Coins · Din match får 25 Coins." },
-  { main: "Ditt steg. Er chans.", sub: "Lås upp för 100 Coins och ge din match 25 Coins." },
-  { main: "Kärlek ska gå åt båda hållen ❤️", sub: "Du låser upp för 100 Coins. Din match får 25 Coins." },
+  { main: "Lås upp för 80 Coins 💘", sub: "Din match får 20 Coins som tack för att du vågade först." },
+  { main: "80 Coins för att ta första steget 🚀", sub: "Din match belönas med 20 Coins. Kärlek ska vara en win-win." },
+  { main: "Öppna dörren för 80 Coins 🔓", sub: "Din match får 20 Coins. Vi gillar när båda går därifrån som vinnare." },
+  { main: "80 Coins och ett hej närmare 👋", sub: "Din match får 20 Coins. Någon måste ju börja." },
+  { main: "80 Coins för att sluta spela svår 😉", sub: "Din match får 20 Coins för att du tog initiativet." },
+  { main: "Betala 80 Coins och slipp \"vem skriver först?\"-paniken 😅", sub: "Din match får 20 Coins som fredsgåva." },
+  { main: "80 Coins för modet att säga hej 🫡", sub: "Din match får 20 Coins. Hjältar belönas." },
+  { main: "Tryck här och skyll på oss om det blir kärlek ❤️", sub: "Kostar 80 Coins. Din match får 20 Coins." },
+  { main: "Ge matchen en chans för 80 Coins ✨", sub: "Din match får 20 Coins tillbaka." },
+  { main: "En liten investering. En möjlig stor historia.", sub: "80 Coins · Din match får 20 Coins." },
+  { main: "Ditt steg. Er chans.", sub: "Lås upp för 80 Coins och ge din match 20 Coins." },
+  { main: "Kärlek ska gå åt båda hållen ❤️", sub: "Du låser upp för 80 Coins. Din match får 20 Coins." },
 ];
 
 export default function ChatScreen() {
@@ -383,11 +384,36 @@ export default function ChatScreen() {
               flatListRef.current?.scrollToEnd({ animated: hasScrolledOnOpenRef.current });
               hasScrolledOnOpenRef.current = true;
             }}
-            contentContainerStyle={styles.msgList}
-            renderItem={({ item }) => {
+            contentContainerStyle={[styles.msgList, messages.length === 0 && styles.msgListEmpty]}
+            ListEmptyComponent={
+              // A fresh match shouldn't open onto a blank screen — offer a
+              // gentle nudge and a few openers that just fill the input.
+              <View style={styles.emptyChat}>
+                <Avatar uri={avatarUri(partner)} size={84} style={styles.emptyChatAvatar} />
+                <Text style={styles.emptyChatTitle}>Chatten är öppen</Text>
+                <Text style={styles.emptyChatSub}>Säg hej till {chatTitle} — det första meddelandet är alltid det svåraste.</Text>
+                <View style={styles.openerRow}>
+                  {OPENERS.map((o) => (
+                    <Touchable key={o} style={styles.openerChip} onPress={() => setNewMessage(o)}>
+                      <Text style={styles.openerText}>{o}</Text>
+                    </Touchable>
+                  ))}
+                </View>
+              </View>
+            }
+            renderItem={({ item, index }) => {
               const mine = item.sender === currentUser.id;
+              // Consecutive messages from the same person read as one
+              // thought: tight spacing, and only the last one gets the tail.
+              const lastInGroup = messages[index + 1]?.sender !== item.sender;
               return (
-                <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, item._pending && styles.bubblePending]}>
+                <View style={[
+                  styles.bubble,
+                  mine ? styles.bubbleMine : styles.bubbleTheirs,
+                  lastInGroup && (mine ? styles.bubbleMineTail : styles.bubbleTheirsTail),
+                  lastInGroup && styles.bubbleGroupEnd,
+                  item._pending && styles.bubblePending,
+                ]}>
                   {!mine && isDuo && <Text style={styles.bubbleSender}>{item.sender_name}</Text>}
                   <Text style={mine ? styles.bubbleTextMine : styles.bubbleTextTheirs}>{item.text}</Text>
                 </View>
@@ -404,7 +430,7 @@ export default function ChatScreen() {
                 onChangeText={setNewMessage}
                 multiline
               />
-              <Touchable testID="send-message-btn" style={styles.sendBtn} onPress={sendMessage} accessibilityLabel="Skicka meddelande" accessibilityRole="button">
+              <Touchable testID="send-message-btn" style={[styles.sendBtn, !newMessage.trim() && styles.sendBtnIdle]} onPress={sendMessage} accessibilityLabel="Skicka meddelande" accessibilityRole="button">
                 <Ionicons name="arrow-up" size={18} color="#000" />
               </Touchable>
             </View>
@@ -539,13 +565,26 @@ const styles = StyleSheet.create({
 
   /* Messages */
   msgList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8 },
-  bubble: { maxWidth: "78%", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 6 },
-  bubbleMine: { backgroundColor: "#C9A84C", alignSelf: "flex-end", borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: "#141210", alignSelf: "flex-start", borderBottomLeftRadius: 4 },
+  msgListEmpty: { flexGrow: 1, justifyContent: "center" },
+  bubble: { maxWidth: "78%", borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 3 },
+  bubbleMine: { backgroundColor: "#C9A84C", alignSelf: "flex-end" },
+  bubbleTheirs: { backgroundColor: "#151311", alignSelf: "flex-start", borderWidth: StyleSheet.hairlineWidth, borderColor: "#262219" },
+  bubbleMineTail: { borderBottomRightRadius: 6 },
+  bubbleTheirsTail: { borderBottomLeftRadius: 6 },
+  bubbleGroupEnd: { marginBottom: 12 },
   bubblePending: { opacity: 0.55 },
   bubbleSender: { color: "#887060", fontSize: 10, marginBottom: 3 },
-  bubbleTextMine: { color: "#000", fontSize: 15, fontWeight: "600" },
-  bubbleTextTheirs: { color: "#fff", fontSize: 15 },
+  bubbleTextMine: { color: "#0B0906", fontSize: 15, lineHeight: 21, fontWeight: "500" },
+  bubbleTextTheirs: { color: "#F2EEE6", fontSize: 15, lineHeight: 21 },
+
+  /* Empty conversation */
+  emptyChat: { alignItems: "center", paddingHorizontal: 28 },
+  emptyChatAvatar: { width: 84, height: 84, borderRadius: 42, borderWidth: 1.5, borderColor: "#C9A84C66", marginBottom: 18 },
+  emptyChatTitle: { color: "#fff", fontSize: 18, fontWeight: "700", letterSpacing: 0.3, marginBottom: 6 },
+  emptyChatSub: { color: "#7A6F5C", fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 22 },
+  openerRow: { alignSelf: "stretch", gap: 8 },
+  openerChip: { borderRadius: 50, borderWidth: 1, borderColor: "#2E2A18", backgroundColor: "#0F0E0C", paddingVertical: 12, paddingHorizontal: 18, alignItems: "center" },
+  openerText: { color: "#D8CBA6", fontSize: 14 },
 
   /* Input */
   inputRow: {
@@ -563,6 +602,7 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     backgroundColor: "#C9A84C", justifyContent: "center", alignItems: "center",
   },
+  sendBtnIdle: { opacity: 0.35 },
 
   /* Modal */
   modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center" },

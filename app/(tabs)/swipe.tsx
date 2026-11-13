@@ -1,28 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
-  Modal,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import { Touchable } from "../../components/Touchable";
 import { BottomSheet } from "../../components/BottomSheet";
 import { glowShadow } from "../../constants/style";
-import { DURATION_NORMAL, DURATION_EMPHASIZED, SPRING_SNAPPY, VELOCITY_THRESHOLD, PHOTO_VELOCITY_THRESHOLD } from "../../constants/motion";
-import Animated, {
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import * as Haptics from "expo-haptics";
+import { useSharedValue } from "react-native-reanimated";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AppLoader } from "../../components/AppLoader";
@@ -40,12 +26,12 @@ import { RoseIcon } from "../../components/RoseIcon";
 import { BoostIcon } from "../../components/BoostIcon";
 import { LogoIcon } from "../../components/LogoIcon";
 import { SadIcon } from "../../components/SadIcon";
-import { DatingGoalsSlide } from "../../components/DatingGoalsSlide";
+import { SwipeCard, CARD_W, CARD_H, type SwipeCardHandle, type SwipeOutcome } from "../../components/SwipeCard";
+import { MatchExperience } from "../../components/MatchExperience";
+import { IS_DEMO } from "../../demo/config";
 
 
-const { width: SW, height: SH } = Dimensions.get("window");
-const CARD_W = Math.min(SW - 32, 420);
-const CARD_H = Math.min(SH * 0.62, 560);
+
 
 const UNLOCK_COST = 80;
 const UNLOCK_REWARD = 20;
@@ -58,18 +44,10 @@ export default function Swipe() {
   const insets = useSafeAreaInsets();
   const { currentUser, refreshUser } = useUser();
   const [cards, setCards] = useState<any[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [photoIndex, setPhotoIndex] = useState(0);
   // True when the deck is empty because the fetch actually failed (bad
   // connection), not because there's genuinely no one left to show —
   // the empty-state render below needs to tell those two apart.
   const [loadError, setLoadError] = useState(false);
-  // Photo URLs that failed to load (dropped/slow connection, expired storage
-  // link) — tracked by URI so a retry on a fresh profile/photo isn't tainted
-  // by an earlier failure elsewhere in the deck.
-  const [failedPhotoUris, setFailedPhotoUris] = useState<Set<string>>(new Set());
-  const markPhotoFailed = (uri: string) =>
-    setFailedPhotoUris((prev) => (prev.has(uri) ? prev : new Set(prev).add(uri)));
   const [filter, setFilter] = useState({ minAge: "18", maxAge: "45", maxDistance: "100" });
   const [filterVisible, setFilterVisible] = useState(false);
   const [matchModal, setMatchModal] = useState<{
@@ -102,29 +80,14 @@ export default function Swipe() {
 
   const { coinBalance, refreshBalance } = useCoin();
 
-  // Card drag position — Reanimated shared values, driven entirely on the UI
-  // thread via Gesture Handler so dragging never round-trips through the JS
-  // thread/bridge per frame (this is what makes the swipe feel native/60fps
-  // instead of laggy).
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const touchStartX = useRef(0);
+  // Swipe motion lives in components/SwipeCard.tsx — each card owns its own
+  // drag position on the UI thread. The screen only shares one value with
+  // the deck: how far the top card has travelled, so the card waiting
+  // underneath can rise into place in step with it.
+  const deckProgress = useSharedValue(0);
+  const topCardRef = useRef<SwipeCardHandle>(null);
   const blockedIdsRef = useRef<Set<string>>(new Set());
 
-  // Photo carousel drag offset — separate from the card's own translateX so
-  // paging through photos and swiping the card can never fight over the
-  // same value; composed as an Exclusive gesture below so a short, quick
-  // horizontal drag pages photos while a longer/faster one falls through to
-  // the card swipe.
-  const photoDragX = useSharedValue(0);
-
-  // Refs used inside the gesture callback to avoid stale closures
-  const photoIndexRef = useRef(0);
-  const visiblePhotosCountRef = useRef(1);
-  // These run AFTER the card has finished flying off-screen (see panGesture
-  // below) — they're the actual state/API-mutating side of a swipe.
-  const completeLikeRef = useRef<() => void>(() => {});
-  const completeSkipRef = useRef<() => void>(() => {});
 
   // Paginated deck loading — avoids fetching every profile's photos up front
   const pageOffsetRef = useRef(0);
@@ -132,65 +95,6 @@ export default function Swipe() {
   const loadingMoreRef = useRef(false);
   const likedSetRef = useRef<Set<string>>(new Set());
 
-  // How far past the edge a card flies before we swap in the next one, and
-  // how long that exit takes. Release decision reacts to BOTH how far the
-  // card travelled AND how fast it was moving — a short, fast flick swipes
-  // just as confidently as a slow long drag, matching how the gesture
-  // actually reads to a thumb. Shared motion constants (constants/motion.ts)
-  // so this matches every other drag-to-decide gesture in the app.
-  const FLY_OUT_X = SW * 1.3;
-  const FLY_DURATION = DURATION_EMPHASIZED;
-  const DISTANCE_THRESHOLD = 110;
-  const SPRING_BACK = SPRING_SNAPPY;
-
-  // Rebuilt fresh every render (cheap, and the recommended Gesture Handler
-  // pattern) so it always closes over the latest ref callbacks below —
-  // no useRef-memoization needed the way the old PanResponder required.
-  // onUpdate/onEnd run on the UI thread; only the haptic (not worklet-safe)
-  // and the post-animation state update cross back to JS, via runOnJS.
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      translateX.value = e.translationX;
-      translateY.value = e.translationY;
-    })
-    .onEnd((e) => {
-      const passedRight = e.translationX > DISTANCE_THRESHOLD || (e.translationX > 20 && e.velocityX > VELOCITY_THRESHOLD);
-      const passedLeft = e.translationX < -DISTANCE_THRESHOLD || (e.translationX < -20 && e.velocityX < -VELOCITY_THRESHOLD);
-
-      if (passedRight) {
-        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
-        translateX.value = withTiming(FLY_OUT_X, { duration: FLY_DURATION }, (finished) => {
-          if (finished) runOnJS(completeLikeRef.current)();
-        });
-        translateY.value = withTiming(translateY.value + e.velocityY * 0.05, { duration: FLY_DURATION });
-      } else if (passedLeft) {
-        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        translateX.value = withTiming(-FLY_OUT_X, { duration: FLY_DURATION }, (finished) => {
-          if (finished) runOnJS(completeSkipRef.current)();
-        });
-        translateY.value = withTiming(translateY.value + e.velocityY * 0.05, { duration: FLY_DURATION });
-      } else {
-        // Under threshold — spring back, carrying the release velocity through
-        // so the snap-back continues the gesture's own momentum instead of
-        // restarting from a standstill.
-        translateX.value = withSpring(0, { ...SPRING_BACK, velocity: e.velocityX });
-        translateY.value = withSpring(0, { ...SPRING_BACK, velocity: e.velocityY });
-      }
-    });
-
-  const cardAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { rotate: `${interpolate(translateX.value, [-200, 0, 200], [-18, 0, 18], Extrapolation.CLAMP)}deg` },
-    ],
-  }));
-  const likeStampStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [20, 100], [0, 1], Extrapolation.CLAMP),
-  }));
-  const nopeStampStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-100, -20], [1, 0], Extrapolation.CLAMP),
-  }));
 
   useEffect(() => {
     if (currentUser) loadCards();
@@ -298,9 +202,6 @@ export default function Swipe() {
       if (page.length < PAGE_SIZE) noMoreCardsRef.current = true;
 
       setCards(applyFilters(page));
-      setCurrentIndex(0);
-      setPhotoIndex(0);
-      photoIndexRef.current = 0;
     } catch (err) {
       // Previously uncaught here — a dropped connection left the deck stuck
       // on its initial loading state forever, with no sign anything had
@@ -335,109 +236,26 @@ export default function Swipe() {
   // Top up the deck before the user runs out of already-fetched cards
   useEffect(() => {
     if (!currentUser?.id) return;
-    if (cards.length - currentIndex <= REFILL_THRESHOLD) loadMoreCards();
-  }, [cards.length, currentIndex, currentUser?.id]);
+    if (cards.length <= REFILL_THRESHOLD) loadMoreCards();
+  }, [cards.length, currentUser?.id]);
 
   const loadMyDuo = async () => {
     const duos = await getMyDuos();
     setMyDuoPartnerIds(duos.map((d) => d.partner?.id).filter(Boolean) as string[]);
   };
 
-  const currentCard = cards[currentIndex];
+  const currentCard = cards[0];
+  const nextCard = cards[1];
 
   // Reciprocal visibility: viewer can see as many photos as they have themselves
   const myPhotoCount = Math.max(1, currentUser?.images?.length ?? 1);
-  const allPhotos: string[] = currentCard?.images?.length > 0
-    ? currentCard.images
-    : currentCard?.avatar ? [currentCard.avatar] : [];
-  const visiblePhotos = allPhotos.slice(0, myPhotoCount);
-
-  // Dating goals get an extra "slide" appended after the real photos — never
-  // a filter, purely an info card so photos stay clean.
-  const currentDatingGoals: string[] = currentCard?.dating_goals ?? [];
-  const hasGoalsSlide = currentDatingGoals.length > 0;
-  const goalsSlideIndex = visiblePhotos.length;
-  const totalSlides = visiblePhotos.length + (hasGoalsSlide ? 1 : 0);
-  const isGoalsSlide = hasGoalsSlide && photoIndex === goalsSlideIndex;
-  const currentPhotoUrl = !isGoalsSlide ? (visiblePhotos[photoIndex] ?? visiblePhotos[0] ?? null) : null;
-
-  // Keep ref in sync with derived value — includes the goals slide so tap
-  // navigation can advance onto it and clamp there.
-  visiblePhotosCountRef.current = Math.max(1, totalSlides);
-
-  // Real horizontal paging between photos — follows the finger with a
-  // neighbour photo sliding in from the edge, snaps on distance OR velocity,
-  // springs back otherwise. Scoped to plain photos only (not the goals
-  // slide, which is a different component) and to a tight, short-range
-  // activation window so it never competes with the card's own swipe:
-  // Exclusive() below gives this gesture first refusal on near-horizontal
-  // drags, and anything it doesn't claim (bigger movement, or no neighbour
-  // to reveal) falls through to the card-swipe gesture untouched.
-  const canPagePrev = !isGoalsSlide && photoIndex > 0;
-  const canPageNext = !isGoalsSlide && photoIndex < visiblePhotos.length - 1;
-  const prevPhotoUrl = canPagePrev ? visiblePhotos[photoIndex - 1] : null;
-  const nextPagingPhotoUrl = canPageNext ? visiblePhotos[photoIndex + 1] : null;
-
-  const PHOTO_DISTANCE_THRESHOLD = CARD_W * 0.28;
-
-  const goToPhoto = (delta: 1 | -1) => {
-    const next = Math.max(0, Math.min(visiblePhotosCountRef.current - 1, photoIndexRef.current + delta));
-    photoIndexRef.current = next;
-    setPhotoIndex(next);
-  };
-
-  const photoPanGesture = Gesture.Pan()
-    .enabled(!isGoalsSlide && totalSlides > 1)
-    .activeOffsetX([-10, 10])
-    .failOffsetY([-18, 18])
-    .onUpdate((e) => {
-      // Clamp so you can't drag past a photo that doesn't exist.
-      const min = canPageNext ? -CARD_W : 0;
-      const max = canPagePrev ? CARD_W : 0;
-      photoDragX.value = Math.max(min, Math.min(max, e.translationX));
-    })
-    .onEnd((e) => {
-      const passedNext = canPageNext && (e.translationX < -PHOTO_DISTANCE_THRESHOLD || e.velocityX < -PHOTO_VELOCITY_THRESHOLD);
-      const passedPrev = canPagePrev && (e.translationX > PHOTO_DISTANCE_THRESHOLD || e.velocityX > PHOTO_VELOCITY_THRESHOLD);
-
-      if (passedNext) {
-        photoDragX.value = withTiming(-CARD_W, { duration: DURATION_NORMAL }, (finished) => {
-          if (finished) {
-            photoDragX.value = 0;
-            runOnJS(goToPhoto)(1);
-          }
-        });
-      } else if (passedPrev) {
-        photoDragX.value = withTiming(CARD_W, { duration: DURATION_NORMAL }, (finished) => {
-          if (finished) {
-            photoDragX.value = 0;
-            runOnJS(goToPhoto)(-1);
-          }
-        });
-      } else {
-        photoDragX.value = withSpring(0, { ...SPRING_SNAPPY, velocity: e.velocityX });
-      }
-    });
-
-  const photoExclusiveGesture = Gesture.Exclusive(photoPanGesture, panGesture);
-
-  const currentPhotoDragStyle = useAnimatedStyle(() => ({ transform: [{ translateX: photoDragX.value }] }));
-  const prevPhotoDragStyle = useAnimatedStyle(() => ({ transform: [{ translateX: photoDragX.value - CARD_W }] }));
-  const nextPhotoDragStyle = useAnimatedStyle(() => ({ transform: [{ translateX: photoDragX.value + CARD_W }] }));
 
   // Runs once the card has finished animating off-screen — the actual
   // state/API side of a like. The next card is already sitting underneath
-  // (rendered as styles.nextCard), so resetting translateX/Y here happens
-  // off-screen from the user's perspective, not as a visible jump.
-  const completeLike = async () => {
-    translateX.value = 0;
-    translateY.value = 0;
-    if (!currentCard || !currentUser) return;
-
-    const likedCard = currentCard;
+  // (its own SwipeCard instance), so nothing visibly jumps.
+  const completeLike = async (likedCard: any) => {
+    if (!likedCard || !currentUser) return;
     setCards(prev => prev.filter(c => c.id !== likedCard.id));
-    setPhotoIndex(0);
-    photoIndexRef.current = 0;
 
     const { error: likeError } = await supabase.from("likes").insert([{ from_user: currentUser.id, to_user: likedCard.id }]);
     if (likeError && likeError.code !== "23505") {
@@ -450,34 +268,23 @@ export default function Swipe() {
     const { data: reciprocal, error: checkError } = await supabase.from("likes").select("*").eq("from_user", likedCard.id).eq("to_user", currentUser.id);
     if (!checkError && reciprocal && reciprocal.length > 0) await createOrUpdateMatch(likedCard);
   };
-  completeLikeRef.current = completeLike;
 
-  const completeSkip = () => {
-    translateX.value = 0;
-    translateY.value = 0;
-    setCurrentIndex(prev => prev + 1);
-    setPhotoIndex(0);
-    photoIndexRef.current = 0;
-  };
-  completeSkipRef.current = completeSkip;
-
-  // Button-triggered like/skip (the heart/X circles) get the same fly-off
-  // motion as a completed drag, instead of the card just vanishing — one
-  // consistent physical response regardless of how the swipe was made.
-  const triggerLike = () => {
-    if (!currentCard) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    translateX.value = withTiming(FLY_OUT_X, { duration: FLY_DURATION }, (finished) => {
-      if (finished) runOnJS(completeLikeRef.current)();
-    });
+  // Skipped cards are dropped from the local deck (they come back on the
+  // next full load, exactly as before — a skip is never persisted).
+  const completeSkip = (skippedCard: any) => {
+    setCards(prev => prev.filter(c => c.id !== skippedCard.id));
   };
 
-  const triggerSkip = () => {
-    if (!currentCard) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    translateX.value = withTiming(-FLY_OUT_X, { duration: FLY_DURATION }, (finished) => {
-      if (finished) runOnJS(completeSkipRef.current)();
-    });
+  const handleSwiped = (outcome: SwipeOutcome, card: any) => {
+    if (outcome === "like") completeLike(card);
+    else completeSkip(card);
+  };
+
+  // After a block the profile leaves the deck with the same motion as a
+  // "nej tack" (or is just dropped, if the card already changed meanwhile).
+  const dismissReported = () => {
+    if (topCardRef.current && currentCard?.id === reportTargetId) topCardRef.current.fly("left", "skip");
+    else setCards(prev => prev.filter(c => c.id !== reportTargetId));
   };
 
   const openReportModal = (card: any) => {
@@ -501,7 +308,7 @@ export default function Swipe() {
       setReportSending(false);
       setReportModal(false);
       setSelectedReason("");
-      completeSkipRef.current();
+      dismissReported();
     }
   };
 
@@ -522,7 +329,7 @@ export default function Swipe() {
       setReportSending(false);
       setReportModal(false);
       setSelectedReason("");
-      completeSkipRef.current();
+      dismissReported();
     }
   };
 
@@ -567,7 +374,7 @@ export default function Swipe() {
     const result = await sendRose(currentCard.id, roseMessage);
     setRoseSending(false);
     if (result.success || result.error_code === "ALREADY_SENT") {
-      await refreshBalance(); setRoseModal(false); setRoseMessage(""); completeSkipRef.current();
+      await refreshBalance(); setRoseModal(false); setRoseMessage(""); topCardRef.current?.fly("up", "skip");
       showRoseToast(`Rose skickad till ${currentCard.name}!`);
     } else if (result.error_code === "INSUFFICIENT_BALANCE") {
       setRoseModal(false); router.push("/buy-coins" as any);
@@ -578,9 +385,8 @@ export default function Swipe() {
 
   if (!currentUser) return <AppLoader />;
 
-  const nextCard = cards[currentIndex + 1];
-  const nextCardPhotos: string[] = nextCard?.images?.length > 0 ? nextCard.images : nextCard?.avatar ? [nextCard.avatar] : [];
-  const nextCardPhoto = nextCardPhotos[0] ?? null;
+  const matchPartnerName = (matchModal.partner?.first_name || matchModal.partner?.name || "din match").split(" ")[0];
+
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
@@ -588,7 +394,10 @@ export default function Swipe() {
       <View style={styles.header}>
         <View style={styles.logoRow}>
           <LogoIcon size={26} />
-          <Text style={styles.logo} numberOfLines={1}>LOVEBACK</Text>
+          <View style={styles.logoTextCol}>
+            <Text style={styles.logo} numberOfLines={1}>LOVEBACK</Text>
+            {IS_DEMO && <Text style={styles.demoTagText}>DEMOLÄGE</Text>}
+          </View>
         </View>
         <View style={styles.headerRight}>
           <CoinBalanceChip />
@@ -616,135 +425,23 @@ export default function Swipe() {
 
 
       {/* Card stack */}
-      <GestureDetector gesture={photoExclusiveGesture}>
       <View style={styles.cardArea}>
         {currentCard ? (
-          <>
-            {/* Background (next) card */}
-            {nextCard && (
-              <View style={[styles.card, styles.nextCard]}>
-                {nextCardPhoto && <Image source={{ uri: nextCardPhoto }} style={styles.cardPhoto} contentFit="cover" cachePolicy="memory-disk" />}
-              </View>
-            )}
-
-            {/* Animated top card */}
-            <Animated.View style={[styles.card, cardAnimatedStyle]}>
-              {/* Current photo, video, or the dating-goals info slide */}
-              {isGoalsSlide ? (
-                <DatingGoalsSlide
-                  goals={currentDatingGoals}
-                  title={`Vad ${(currentCard.first_name || currentCard.name || "").split(" ")[0]} söker`}
-                />
-              ) : (
-                <>
-                  {/* Neighbour photos peek in from the edge while dragging */}
-                  {prevPhotoUrl && (
-                    <Animated.View style={[styles.cardPhoto, prevPhotoDragStyle]}>
-                      <Image source={{ uri: prevPhotoUrl }} style={styles.cardPhoto} contentFit="cover" cachePolicy="memory-disk" />
-                    </Animated.View>
-                  )}
-                  {nextPagingPhotoUrl && (
-                    <Animated.View style={[styles.cardPhoto, nextPhotoDragStyle]}>
-                      <Image source={{ uri: nextPagingPhotoUrl }} style={styles.cardPhoto} contentFit="cover" cachePolicy="memory-disk" />
-                    </Animated.View>
-                  )}
-                  <Animated.View style={[styles.cardPhoto, currentPhotoDragStyle]}>
-                    {currentPhotoUrl && !failedPhotoUris.has(currentPhotoUrl) && (
-                      <Image
-                        source={{ uri: currentPhotoUrl }}
-                        style={styles.cardPhoto}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                        transition={150}
-                        onError={() => markPhotoFailed(currentPhotoUrl)}
-                      />
-                    )}
-                    {currentPhotoUrl?.toLowerCase().endsWith(".mp4") && (
-                      <View style={styles.videoPlayOverlay}>
-                        <Text style={styles.videoPlayIcon}>▶</Text>
-                      </View>
-                    )}
-                    {(!currentPhotoUrl || failedPhotoUris.has(currentPhotoUrl)) && (
-                      <View style={[styles.cardPhoto, styles.cardPhotoFallback]}>
-                        <Ionicons name="person" size={72} color="#2A2620" />
-                      </View>
-                    )}
-                  </Animated.View>
-                </>
-              )}
-
-              {/* Left / right tap zones for photo navigation */}
-              {totalSlides > 1 && (
-                <View style={styles.photoTapZones} pointerEvents="box-none">
-                  <Touchable
-                    style={styles.photoTapLeft}
-                    haptic={false}
-                    scaleTo={1}
-                    accessibilityLabel="Föregående foto"
-                    accessibilityRole="button"
-                    onPress={() => {
-                      const next = Math.max(0, photoIndexRef.current - 1);
-                      photoIndexRef.current = next;
-                      setPhotoIndex(next);
-                    }}
-                  />
-                  <Touchable
-                    style={styles.photoTapRight}
-                    haptic={false}
-                    scaleTo={1}
-                    accessibilityLabel="Nästa foto"
-                    accessibilityRole="button"
-                    onPress={() => {
-                      const next = Math.min(visiblePhotosCountRef.current - 1, photoIndexRef.current + 1);
-                      photoIndexRef.current = next;
-                      setPhotoIndex(next);
-                    }}
-                  />
-                </View>
-              )}
-
-              {/* Photo dot indicators */}
-              {totalSlides > 1 && (
-                <View style={styles.photoDots}>
-                  {Array.from({ length: totalSlides }).map((_, i) => (
-                    <View key={i} style={[styles.photoDot, i === photoIndex && styles.photoDotActive]} />
-                  ))}
-                </View>
-              )}
-
-              {/* Dark gradient at bottom */}
-              <View style={styles.cardGradient} />
-
-              {/* Report button — top-right corner */}
-              <Touchable
-                style={styles.cardReportBtn}
-                onPress={() => openReportModal(currentCard)}
-                hitSlop={8}
-                accessibilityLabel="Rapportera profil"
-                accessibilityRole="button"
-              >
-                <Ionicons name="flag-outline" size={16} color="#fff" style={{ opacity: 0.85 }} />
-              </Touchable>
-
-              {/* Like / Nope stamp */}
-              <Animated.View style={[styles.stamp, styles.likeStamp, likeStampStyle]}>
-                <Text style={styles.stampText}>💅 Ja tack</Text>
-              </Animated.View>
-              <Animated.View style={[styles.stamp, styles.nopeStamp, nopeStampStyle]}>
-                <Text style={[styles.stampText, { color: "#FF4458" }]}>❌ Nej tack</Text>
-              </Animated.View>
-
-              {/* Card info */}
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardName} numberOfLines={1}>{(currentCard.first_name || currentCard.name || "").split(" ")[0]}, {currentCard.age}</Text>
-                <Text style={styles.cardSub}>{currentCard.distance ?? 5} km bort</Text>
-                {visiblePhotos.length < allPhotos.length && (
-                  <Text style={styles.morePhotosHint}>+{allPhotos.length - visiblePhotos.length} fler foton synliga med fler egna foton</Text>
-                )}
-              </View>
-
-            </Animated.View>
-          </>
+          // Two keyed cards: the one waiting underneath is rendered first and
+          // simply gets promoted (same key, same instance, photo already
+          // decoded) when the top card leaves — no remount, no flash.
+          [nextCard, currentCard].filter(Boolean).map((card) => (
+            <SwipeCard
+              key={card.id}
+              ref={card === currentCard ? topCardRef : undefined}
+              card={card}
+              isTop={card === currentCard}
+              myPhotoCount={myPhotoCount}
+              deckProgress={deckProgress}
+              onSwiped={handleSwiped}
+              onReport={openReportModal}
+            />
+          ))
         ) : (
           <View style={styles.emptyCard}>
             <SadIcon size={80} />
@@ -768,17 +465,16 @@ export default function Swipe() {
           </View>
         )}
       </View>
-      </GestureDetector>
 
       {/* Action buttons */}
       <View style={[styles.actions, !currentCard && styles.actionsDisabled]}>
-        <Touchable style={[styles.actionBtn, styles.skipBtn]} haptic={false} scaleTo={0.92} onPress={triggerSkip} disabled={!currentCard} accessibilityLabel="Nej tack" accessibilityRole="button">
+        <Touchable style={[styles.actionBtn, styles.skipBtn]} haptic={false} scaleTo={0.92} onPress={() => topCardRef.current?.fly("left", "skip")} disabled={!currentCard} accessibilityLabel="Nej tack" accessibilityRole="button">
           <Text style={styles.skipIcon}>✕</Text>
         </Touchable>
         <Touchable style={[styles.actionBtn, styles.roseBtn]} scaleTo={0.92} onPress={() => { setRoseError(""); setRoseModal(true); }} disabled={!currentCard} accessibilityLabel="Skicka en Rose" accessibilityRole="button">
           <RoseIcon size={20} />
         </Touchable>
-        <Touchable style={[styles.actionBtn, styles.likeBtn]} haptic={false} scaleTo={0.92} onPress={triggerLike} disabled={!currentCard} accessibilityLabel="Ja tack" accessibilityRole="button">
+        <Touchable style={[styles.actionBtn, styles.likeBtn]} haptic={false} scaleTo={0.92} onPress={() => topCardRef.current?.fly("right", "like")} disabled={!currentCard} accessibilityLabel="Ja tack" accessibilityRole="button">
           <Text style={styles.likeIcon}>♥</Text>
         </Touchable>
       </View>
@@ -916,38 +612,23 @@ export default function Swipe() {
         </Touchable>
       </BottomSheet>
 
-      {/* Match modal */}
-      <Modal visible={matchModal.visible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.matchBox}>
-            <Text style={styles.matchEmoji}>♛</Text>
-            <Text style={styles.matchTitle}>Det är en match!</Text>
-            <Text style={styles.matchText}>Du och {matchModal.partner?.name || "någon"} gillar varandra.</Text>
-            {matchModal.unlocked ? (
-              <>
-                <Text style={styles.matchUnlocked}>Chatten är upplåst ✓</Text>
-                <Touchable style={styles.unlockBtn} onPress={() => { closeMatchModal(); router.push("/(tabs)/matches" as any); }}>
-                  <Text style={styles.unlockBtnText}>💬 Gå till Matchningar</Text>
-                </Touchable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.matchSub}>✦ Lås upp chatten för {UNLOCK_COST} Coins</Text>
-                <Text style={styles.matchSubSmall}>Din match får {UNLOCK_REWARD} Coins i belöning</Text>
-                <Touchable style={[styles.unlockBtn, unlocking && styles.disabled]} haptic="medium" onPress={handlePayReveal} disabled={unlocking}>
-                  <Text style={styles.unlockBtnText}>{unlocking ? "Låser upp..." : `✦ Lås upp för ${UNLOCK_COST} Coins`}</Text>
-                </Touchable>
-              </>
-            )}
-            <Touchable style={styles.closeBtn} onPress={() => { closeMatchModal(); router.push("/(tabs)/matches" as any); }}>
-              <Text style={styles.closeBtnText}>Se match i Matchningar →</Text>
-            </Touchable>
-            <Touchable style={styles.laterBtn} onPress={closeMatchModal}>
-              <Text style={styles.laterBtnText}>Fortsätt swipa</Text>
-            </Touchable>
-          </View>
-        </View>
-      </Modal>
+      {/* Match moment */}
+      <MatchExperience
+        visible={matchModal.visible}
+        mine={[currentUser.images?.[0] ?? currentUser.avatar]}
+        theirs={[matchModal.partner?.images?.[0] ?? matchModal.partner?.avatar]}
+        title={`Du och ${matchPartnerName}`}
+        subtitle="gillar varandra."
+        unlocked={matchModal.unlocked}
+        unlocking={unlocking}
+        unlockLabel={`Lås upp chatten · ${UNLOCK_COST} ✦`}
+        unlockHint={`${matchPartnerName} får ${UNLOCK_REWARD} Coins i belöning`}
+        chatLabel={`Skriv till ${matchPartnerName}`}
+        onUnlock={handlePayReveal}
+        onOpenChat={() => { closeMatchModal(); router.push(`/chat/${matchModal.matchId}?kind=solo` as any); }}
+        onShowInMatches={() => { closeMatchModal(); router.push("/(tabs)/matches" as any); }}
+        onContinue={closeMatchModal}
+      />
 
     </View>
   );
@@ -972,14 +653,8 @@ const styles = StyleSheet.create({
   utilityDivider: { width: 1, height: 16, backgroundColor: "#1E1C19" },
   utilityBoostText: { fontSize: 13, color: "#C9A84C", fontWeight: "700" },
   cardArea: { height: CARD_H + 24, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
-  card: { width: CARD_W, height: CARD_H, borderRadius: 24, overflow: "hidden", backgroundColor: "#101010", ...glowShadow(0.08, 24), zIndex: 1 },
-  nextCard: { position: "absolute", transform: [{ scale: 0.94 }, { translateY: 14 }], zIndex: 0, shadowOpacity: 0 },
-  cardPhoto: { width: "100%", height: "100%", position: "absolute" },
-  cardPhotoFallback: { backgroundColor: "#141210", alignItems: "center", justifyContent: "center" },
-  photoTapZones: { position: "absolute", top: 0, left: 0, right: 0, bottom: "30%", flexDirection: "row", zIndex: 5 },
-  photoTapLeft: { flex: 4 },
-  photoTapRight: { flex: 6 },
-  cardReportBtn: { position: "absolute", top: 12, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", zIndex: 20 },
+  logoTextCol: { flexShrink: 1, minWidth: 0 },
+  demoTagText: { color: "#8A7A5C", fontSize: 8, fontWeight: "700", letterSpacing: 2.5, marginTop: 1 },
   reportSheet: { backgroundColor: "#111010", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 20, paddingBottom: 40, paddingHorizontal: 24 },
   reportSheetTitle: { color: "#fff", fontSize: 16, fontWeight: "800", marginBottom: 20, textAlign: "center" },
   reportOption: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: "#1A1815", marginBottom: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -991,18 +666,6 @@ const styles = StyleSheet.create({
   reportBlockBtn: { backgroundColor: "#1A1815", borderRadius: 50, paddingVertical: 14, alignItems: "center", marginBottom: 8, borderWidth: 1, borderColor: "#3A2A1A" },
   reportBlockText: { color: "#C9A84C", fontWeight: "700", fontSize: 14 },
   reportCancelText: { color: "#4A4035", fontSize: 14, textAlign: "center", paddingVertical: 8 },
-  photoDots: { position: "absolute", top: 10, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 5, zIndex: 10 },
-  photoDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.35)" },
-  photoDotActive: { backgroundColor: "#C9A84C", width: 20, borderRadius: 3 },
-  cardGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: CARD_H * 0.5, backgroundColor: "rgba(0,0,0,0.0)", borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
-  stamp: { position: "absolute", top: 40, borderWidth: 3, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6, transform: [{ rotate: "-20deg" }] },
-  likeStamp: { left: 20, borderColor: "#C9A84C" },
-  nopeStamp: { right: 20, borderColor: "#FF4458", transform: [{ rotate: "20deg" }] },
-  stampText: { fontSize: 24, fontWeight: "900", color: "#C9A84C", letterSpacing: 2 },
-  cardInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 22, paddingBottom: 28, backgroundColor: "rgba(0,0,0,0.7)" },
-  cardName: { color: "#fff", fontSize: 22, fontWeight: "800", letterSpacing: 0.3 },
-  cardSub: { color: "rgba(201,168,76,0.7)", fontSize: 13, marginTop: 3, letterSpacing: 0.5 },
-  morePhotosHint: { color: "#5A4E38", fontSize: 12, marginTop: 6, fontStyle: "italic" },
   emptyCard: { width: CARD_W, height: CARD_H, borderRadius: 24, backgroundColor: "#101010", justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: "#1E1C19" },
   emptyEmoji: { fontSize: 44, marginBottom: 16 },
   emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 8, letterSpacing: 1 },
@@ -1022,7 +685,6 @@ const styles = StyleSheet.create({
   skipIcon: { fontSize: 20, color: "#8A7A5C", fontWeight: "700" },
   likeIcon: { fontSize: 24, color: "#000", fontWeight: "900" },
   roseBtn: { backgroundColor: "#0D0C0A", width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: "#3A2E14" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
   filterSheet: { backgroundColor: "#101010", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 48, borderTopWidth: 1, borderTopColor: "#1E1C19" },
   filterTitle: { color: "#fff", fontSize: 20, fontWeight: "800", marginBottom: 20, letterSpacing: 1 },
   filterLabel: { color: "#887060", fontSize: 12, marginBottom: 8, marginTop: 12, letterSpacing: 0.5 },
@@ -1031,17 +693,6 @@ const styles = StyleSheet.create({
   filterInput: { flex: 1, backgroundColor: "#181614", color: "#fff", borderRadius: 12, padding: 14, fontSize: 15, textAlign: "center", borderWidth: 1, borderColor: "#1E1C19" },
   filterApply: { backgroundColor: "#C9A84C", borderRadius: 50, paddingVertical: 16, alignItems: "center", marginTop: 24 },
   filterApplyText: { color: "#000", fontWeight: "800", fontSize: 16, letterSpacing: 1 },
-  matchBox: { backgroundColor: "#0D0B09", borderRadius: 24, padding: 28, marginHorizontal: 24, alignItems: "center", alignSelf: "center", width: "88%", borderWidth: 1, borderColor: "#2E2A18" },
-  matchEmoji: { fontSize: 44, marginBottom: 14, color: "#C9A84C" },
-  matchTitle: { color: "#fff", fontSize: 24, fontWeight: "900", marginBottom: 8, letterSpacing: 1 },
-  matchText: { color: "#887060", fontSize: 15, textAlign: "center", marginBottom: 20 },
-  matchUnlocked: { color: "#C9A84C", fontSize: 15, fontWeight: "700", marginBottom: 16 },
-  matchSub: { color: "#887060", fontSize: 14, textAlign: "center", marginBottom: 4 },
-  matchSubSmall: { color: "#4A4035", fontSize: 12, textAlign: "center", marginBottom: 20 },
-  unlockBtn: { backgroundColor: "#C9A84C", borderRadius: 50, paddingVertical: 14, paddingHorizontal: 24, marginBottom: 12, width: "100%", alignItems: "center" },
-  unlockBtnText: { color: "#000", fontWeight: "800", fontSize: 15, letterSpacing: 0.5 },
-  closeBtn: { backgroundColor: "#181614", borderRadius: 50, paddingVertical: 15, paddingHorizontal: 24, width: "100%", alignItems: "center", borderWidth: 1, borderColor: "#1E1C19" },
-  closeBtnText: { color: "#C9A84C", fontWeight: "600", fontSize: 15 },
   disabled: { opacity: 0.5 },
   laterBtn: { paddingVertical: 10, alignItems: "center", width: "100%", marginTop: 4 },
   laterBtnText: { color: "#4A4035", fontSize: 14, fontWeight: "500" },
@@ -1058,6 +709,4 @@ const styles = StyleSheet.create({
   toastWrap: { position: "absolute", bottom: 120, alignSelf: "center", backgroundColor: "#FF6B8A", borderRadius: 50, paddingVertical: 10, paddingHorizontal: 20 },
   toastText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
-  videoPlayOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
-  videoPlayIcon: { fontSize: 48, color: "rgba(255,255,255,0.9)" },
 });

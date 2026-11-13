@@ -120,6 +120,7 @@ import { useUser } from "../../contexts/UserContext";
 import { useCoin } from "../../contexts/CoinContext";
 import { CoinBalanceChip } from "../../components/CoinBalanceChip";
 import { DuoCard } from "../../components/DuoCard";
+import { MatchExperience } from "../../components/MatchExperience";
 import { SadIcon } from "../../components/SadIcon";
 import {
   duoSwipeLike,
@@ -497,64 +498,27 @@ export default function DuosScreen() {
         </View>
       )}
 
-      {/* Duo match modal */}
-      <Modal visible={duoMatchModal.visible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.matchBox}>
-            <Text style={styles.matchEmoji}>♛</Text>
-            <Text style={styles.matchTitle}>Era Duos matchade!</Text>
-            <Text style={styles.matchText}>
-              Ni och {duoMatchModal.otherMember1?.first_name || duoMatchModal.otherMember1?.name}
-              {" & "}
-              {duoMatchModal.otherMember2?.first_name || duoMatchModal.otherMember2?.name} gillar varandra.
-            </Text>
-            {duoMatchModal.unlocked ? (
-              <>
-                <Text style={styles.matchUnlocked}>Chatten är upplåst ✓</Text>
-                <Touchable
-                  style={styles.unlockBtn}
-                  onPress={() => {
-                    closeDuoMatchModal();
-                    router.push("/(tabs)/matches" as any);
-                  }}
-                >
-                  <Text style={styles.unlockBtnText}>💬 Gå till Matchningar</Text>
-                </Touchable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.matchSub}>✦ Lås upp chatten för {UNLOCK_COST} Coins</Text>
-                <Text style={styles.matchSubSmall}>
-                  Er andra Duo delar {Math.floor(UNLOCK_REWARD / 2)} Coins var i belöning
-                </Text>
-                <Touchable
-                  testID="duo-unlock-btn"
-                  style={[styles.unlockBtn, duoUnlocking && styles.disabled]}
-                  haptic="medium"
-                  onPress={handleDuoUnlock}
-                  disabled={duoUnlocking}
-                >
-                  <Text style={styles.unlockBtnText}>
-                    {duoUnlocking ? "Låser upp..." : `Lås upp för ${UNLOCK_COST} Coins`}
-                  </Text>
-                </Touchable>
-              </>
-            )}
-            <Touchable
-              style={styles.closeBtn}
-              onPress={() => {
-                closeDuoMatchModal();
-                router.push("/(tabs)/matches" as any);
-              }}
-            >
-              <Text style={styles.closeBtnText}>Se match i Matchningar →</Text>
-            </Touchable>
-            <Touchable style={styles.laterBtn} onPress={closeDuoMatchModal}>
-              <Text style={styles.laterBtnText}>Fortsätt swipa</Text>
-            </Touchable>
-          </View>
-        </View>
-      </Modal>
+      {/* Duo match moment */}
+      <MatchExperience
+        visible={duoMatchModal.visible}
+        mine={[currentUser.images?.[0] ?? currentUser.avatar, myDuo?.partner?.avatar]}
+        theirs={[
+          duoMatchModal.otherMember1?.images?.[0] ?? duoMatchModal.otherMember1?.avatar,
+          duoMatchModal.otherMember2?.images?.[0] ?? duoMatchModal.otherMember2?.avatar,
+        ]}
+        overline="ERA DUOS MATCHADE"
+        title={`${duoMatchModal.otherMember1?.first_name || duoMatchModal.otherMember1?.name || ""} & ${duoMatchModal.otherMember2?.first_name || duoMatchModal.otherMember2?.name || ""}`}
+        subtitle="gillar er också."
+        unlocked={duoMatchModal.unlocked}
+        unlocking={duoUnlocking}
+        unlockLabel={`Lås upp gruppchatten · ${UNLOCK_COST} ✦`}
+        unlockHint={`Er andra Duo delar ${Math.floor(UNLOCK_REWARD / 2)} Coins var i belöning`}
+        chatLabel="Öppna gruppchatten"
+        onUnlock={handleDuoUnlock}
+        onOpenChat={() => { closeDuoMatchModal(); router.push(`/chat/${duoMatchModal.duoMatchId}?kind=duo` as any); }}
+        onShowInMatches={() => { closeDuoMatchModal(); router.push("/(tabs)/matches" as any); }}
+        onContinue={closeDuoMatchModal}
+      />
     </View>
   );
 }

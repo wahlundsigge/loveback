@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { demoRuntime } from '../../demo/runtime'
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
@@ -67,6 +68,9 @@ async function callEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown> = {}
 ): Promise<T> {
+  // Demo Mode: answered by the in-memory demo backend, never the network.
+  if (demoRuntime) return demoRuntime.demoEdgeFunction<T>(functionName, body)
+
   const authHeader = await getAuthHeader()
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/${functionName}`,

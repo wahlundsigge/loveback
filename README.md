@@ -1,50 +1,58 @@
-# Welcome to your Expo app 👋
+# LoveBack
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Premium dating-app byggd med Expo (React Native) och Supabase.
 
-## Get started
+## Snabbstart – demoläge (ingen inloggning, inga nycklar)
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm install
+npm run demo
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Skanna QR-koden med Expo Go på telefonen. Steg-för-steg-guide för en ny dator
+finns i [MEETING_SETUP.md](MEETING_SETUP.md), och ett färdigt demomanus i
+[MEETING_DEMO.md](MEETING_DEMO.md).
 
-## Learn more
+| Kommando | Vad det gör |
+| --- | --- |
+| `npm run demo` | Startar appen i demoläge (telefon via Expo Go, samma wifi) |
+| `npm run demo:tunnel` | Samma, men via tunnel – när wifi-nätet blockerar anslutningen |
+| `npm run demo:web` | Demoläge i webbläsaren på datorn |
+| `npm start` | Vanligt läge mot riktig backend (kräver `.env`) |
+| `npm run typecheck` | TypeScript-kontroll |
+| `npm run lint` | ESLint |
 
-To learn more about developing your project with Expo, look at the following resources:
+## Demoläge
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Demoläget byter ut Supabase-klienten mot en minnesbaserad kopia med fiktiv
+data. Ingenting läses från eller skrivs till den riktiga databasen, och inga
+nycklar behövs.
 
-## Join the community
+- `demo/config.ts` – strömbrytaren `IS_DEMO`. Kräver **både** utvecklingsbygge
+  (`__DEV__`) och `EXPO_PUBLIC_DEMO_MODE=1`. Produktionsbyggen får alltid
+  `false`.
+- `demo/runtime.ts` – laddar demokoden bara i demoläge, så att kod, data och
+  bilder inte följer med i produktionsbyggen.
+- `demo/client.ts` – minnesbaserad ersättare för Supabase-klienten och
+  edge-funktionerna (coins, upplåsning, Rose, boost).
+- `demo/data.ts` – fiktiva profiler, matchningar och konversationer.
+- `assets/demo/` – lokala demobilder, se [assets/demo/README.md](assets/demo/README.md).
 
-Join our community of developers creating universal apps.
+Återställ demon: **Profil → Återställ demo**, eller ladda om appen.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Vanligt läge (riktig backend)
+
+1. Kopiera `.env.example` till `.env` och fyll i projektets Supabase-URL och
+   publika anon-nyckel. `.env` är git-ignorerad och ska aldrig checkas in.
+2. `npm start`
+
+Databasschema och edge-funktioner ligger i `supabase/` och `supabase-*.sql`.
+
+## Struktur
+
+- `app/` – skärmar (Expo Router). `app/(tabs)/` är flikarna Utforska, Duos,
+  Matcher, Coins och Profil.
+- `components/` – delade komponenter, bl.a. `SwipeCard` och `MatchExperience`.
+- `constants/` – färger, rörelse och stil (svart/guld-identiteten).
+- `demo/` – demoläget.
+- `scripts/demo.js` – startskriptet bakom `npm run demo`.

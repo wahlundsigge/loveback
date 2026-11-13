@@ -136,7 +136,7 @@ export default function OnboardingScreen() {
       const resp = await fetch(localUri);
       const blob = await resp.blob();
       const mimeType = blob.type || (type === 'video' ? 'video/mp4' : 'image/jpeg');
-      const url = await uploadMedia(blob, mimeType, userId, type);
+      const url = await uploadMedia(blob, mimeType, userId, type, localUri);
       setMediaSlots((prev) => [...prev, { localUri, dataUrl: url, type }]);
     } catch {
       setErrorMsg("Kunde inte ladda upp bilden. Försök igen.");

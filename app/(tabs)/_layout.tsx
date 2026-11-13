@@ -21,8 +21,10 @@ export default function TabLayout() {
           backgroundColor: "#0A0A0A",
           borderTopColor: "#18160F",
           borderTopWidth: 1,
-          height: 50 + insets.bottom,
-          paddingBottom: insets.bottom + 4,
+          // Room for icon + the active label on every device — including
+          // phones without a home-indicator inset, where the label used to clip.
+          height: 56 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 2 : 8,
           paddingTop: 6,
         },
         tabBarActiveTintColor: "#C9A84C",

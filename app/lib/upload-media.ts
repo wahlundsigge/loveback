@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { IS_DEMO } from '../../demo/config';
 
 export type MediaType = 'image' | 'video';
 
@@ -7,7 +8,12 @@ export async function uploadMedia(
   mimeType: string,
   userId: string,
   type: MediaType,
+  localUri?: string,
 ): Promise<string> {
+  // Demo Mode: nothing is uploaded — the picked file is shown straight from
+  // the device for the rest of the session.
+  if (IS_DEMO && localUri) return localUri;
+
   const ext = mimeType.includes('png') ? 'png'
     : mimeType.includes('webp') ? 'webp'
     : mimeType.includes('avif') ? 'avif'

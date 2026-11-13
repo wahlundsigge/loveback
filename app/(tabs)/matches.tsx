@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { Image as CachedImage } from "expo-image";
 import { Avatar } from "../../components/Avatar";
@@ -293,7 +294,7 @@ export default function Matches() {
                     <View style={styles.newMatchBottom}>
                       {m.kind === "duo"
                         ? <View style={styles.duoTagInline}><Text style={styles.duoTagText}>DUO</Text></View>
-                        : <Text style={styles.newMatchQuestion}>?</Text>
+                        : <Ionicons name="lock-closed" size={13} color="#C9A84C" />
                       }
                     </View>
                   </Touchable>
