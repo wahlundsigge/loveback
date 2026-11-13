@@ -48,12 +48,11 @@ Projektet ligger i ett privat GitHub-repository. Du behöver:
 
 ## 4. Hämta projektet (klona)
 
-Öppna PowerShell och kör följande. Byt ut `<REPO-ADRESS>` mot adressen du fått
-av ägaren (den ser ut ungefär som `https://github.com/<konto>/loveback.git`):
+Öppna PowerShell och kör följande:
 
 ```powershell
 cd $HOME\Documents
-git clone <REPO-ADRESS> loveback
+git clone https://github.com/wahlundsigge/loveback.git loveback
 ```
 
 Första gången öppnas ett fönster där du loggar in på GitHub. Gör det, så
