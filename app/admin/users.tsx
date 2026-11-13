@@ -215,7 +215,7 @@ export default function AdminUsers() {
         initialNumToRender={20}
         removeClippedSubviews
         ListEmptyComponent={
-          !loading ? <Text style={styles.emptyText}>Inga användare hittades.</Text> : null
+          !loading ? <Text style={styles.emptyText}>Inga användare hittades.</Text> : undefined
         }
         contentContainerStyle={users.length === 0 ? styles.emptyContainer : undefined}
         ItemSeparatorComponent={() => <View style={styles.separator} />}

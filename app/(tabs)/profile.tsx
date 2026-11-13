@@ -141,7 +141,7 @@ export default function ProfileScreen() {
   const imagesRef = useRef<string[]>(images);
   useEffect(() => { imagesRef.current = images; _cImages = images; }, [images]);
   const slotMeasures = useRef<Array<{ x: number; y: number; w: number; h: number } | null>>([]);
-  const slotViewRefs = useRef<Array<View | null>>([]);
+  const slotViewRefs = useRef<Array<React.ComponentRef<typeof View> | null>>([]);
 
   const refreshMeasures = () => {
     slotViewRefs.current.forEach((r, i) => {
@@ -465,7 +465,7 @@ export default function ProfileScreen() {
             Supporting photos sit in a uniform grid below it. */}
         <View {...panResponder.panHandlers}>
           <View
-            ref={(r) => { slotViewRefs.current[0] = r as View | null; }}
+            ref={(r) => { slotViewRefs.current[0] = r; }}
             onLayout={() => { slotViewRefs.current[0]?.measureInWindow((x, y, w, h) => { slotMeasures.current[0] = { x, y, w, h }; }); }}
             style={[styles.hero, dragActive === 0 && styles.photoSlotDragging, dragHover === 0 && styles.slotHover]}
             // @ts-ignore — web only
@@ -511,7 +511,7 @@ export default function ProfileScreen() {
                 return (
                   <View
                     key={idx}
-                    ref={(r) => { slotViewRefs.current[idx] = r as View | null; }}
+                    ref={(r) => { slotViewRefs.current[idx] = r; }}
                     onLayout={() => { slotViewRefs.current[idx]?.measureInWindow((x, y, w, h) => { slotMeasures.current[idx] = { x, y, w, h }; }); }}
                     style={[styles.slot, dragActive === idx && styles.photoSlotDragging, dragHover === idx && styles.slotHover]}
                     // @ts-ignore — web only

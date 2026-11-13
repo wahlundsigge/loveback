@@ -54,7 +54,7 @@ export default function AdminLayout() {
         options={{
           title: 'Översikt',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={size} color={color} />
+            <Ionicons name="stats-chart" size={size} color={color as string} />
           ),
         }}
       />
@@ -63,7 +63,7 @@ export default function AdminLayout() {
         options={{
           title: 'Användare',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
+            <Ionicons name="people" size={size} color={color as string} />
           ),
         }}
       />
@@ -72,7 +72,7 @@ export default function AdminLayout() {
         options={{
           title: 'Inställningar',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+            <Ionicons name="settings" size={size} color={color as string} />
           ),
         }}
       />

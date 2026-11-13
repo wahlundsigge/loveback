@@ -37,7 +37,7 @@ export default function TabLayout() {
           title: "Utforska",
           tabBarLabel: makeLabel("Utforska"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "flame" : "flame-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "flame" : "flame-outline"} size={24} color={color as string} />
           ),
         }}
       />
@@ -47,7 +47,7 @@ export default function TabLayout() {
           title: "Duos",
           tabBarLabel: makeLabel("Duos"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "people" : "people-outline"} size={24} color={color as string} />
           ),
         }}
       />
@@ -57,7 +57,7 @@ export default function TabLayout() {
           title: "Matcher",
           tabBarLabel: makeLabel("Matcher"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} size={23} color={color as string} />
           ),
         }}
       />
@@ -67,7 +67,7 @@ export default function TabLayout() {
           title: "Coins",
           tabBarLabel: makeLabel("Coins"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "wallet" : "wallet-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "wallet" : "wallet-outline"} size={23} color={color as string} />
           ),
         }}
       />
@@ -77,7 +77,7 @@ export default function TabLayout() {
           title: "Profil",
           tabBarLabel: makeLabel("Profil"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={25} color={color} />
+            <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={25} color={color as string} />
           ),
         }}
       />
